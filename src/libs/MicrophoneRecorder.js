@@ -12,6 +12,7 @@ let onStartCallback;
 let onStopCallback;
 let onSaveCallback;
 let onDataCallback;
+let onDataPcmCallback;
 
 const constraints = { audio: true, video: false }; // constraints - only audio needed
 
@@ -21,15 +22,16 @@ navigator.getUserMedia = (navigator.getUserMedia ||
                           navigator.msGetUserMedia);
 
 export class MicrophoneRecorder {
-  constructor(onStart, onStop, onSave, onData, options) {
+  constructor(onStart, onStop, onSave, onData, onDataPcm, options) {
     onStartCallback= onStart;
-    onStopCallback= onStop;
+    onStopCallback = onStop;
     onSaveCallback = onSave;
     onDataCallback = onData;
-    mediaOptions= options;
+    onDataPcmCallback = onDataPcm;
+    mediaOptions = options;
   }
 
-  startRecording=() => {
+  startRecording = () => {
 
     startTime = Date.now();
 
@@ -82,6 +84,17 @@ export class MicrophoneRecorder {
 
             const source = audioCtx.createMediaStreamSource(stream);
             source.connect(analyser);
+
+            if (onDataPcmCallback) {
+              const processor = audioCtx.createScriptProcessor(2048, 1, 1);
+              processor.connect(audioCtx.destination);
+              source.connect(processor);
+              processor.onaudioprocess = (evt) => {
+                var left = evt.inputBuffer.getChannelData(0);
+                var left16 = downsampleBuffer(left, 44100, 16000)
+                onDataPcmCallback(left16)
+              };
+            }
           });
 
       } else {
@@ -103,6 +116,33 @@ export class MicrophoneRecorder {
 
       audioCtx.suspend();
     }
+  }
+
+  downsampleBuffer(buffer, sampleRate, outSampleRate) {
+    if (outSampleRate == sampleRate) {
+        return buffer;
+    }
+    if (outSampleRate > sampleRate) {
+        throw "downsampling rate show be smaller than original sample rate";
+    }
+    var sampleRateRatio = sampleRate / outSampleRate;
+    var newLength = Math.round(buffer.length / sampleRateRatio);
+    var result = new Int16Array(newLength);
+    var offsetResult = 0;
+    var offsetBuffer = 0;
+    while (offsetResult < result.length) {
+        var nextOffsetBuffer = Math.round((offsetResult + 1) * sampleRateRatio);
+        var accum = 0, count = 0;
+        for (var i = offsetBuffer; i < nextOffsetBuffer && i < buffer.length; i++) {
+            accum += buffer[i];
+            count++;
+        }
+
+        result[offsetResult] = Math.min(1, accum / count)*0x7FFF;
+        offsetResult++;
+        offsetBuffer = nextOffsetBuffer;
+    }
+    return result.buffer;
   }
 
   onStop(evt) {

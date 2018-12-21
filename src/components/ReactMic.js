@@ -29,6 +29,7 @@ export default class ReactMic extends Component {
       onStop,
       onStart,
       onData,
+      onDataPcm,
       audioElem,
       audioBitsPerSecond,
       mimeType
@@ -63,6 +64,7 @@ export default class ReactMic extends Component {
                                 onStop,
                                 onSave,
                                 onData,
+                                onDataPcm,
                                 options
                               ),
         canvas              : canvas,
@@ -123,7 +125,8 @@ ReactMic.propTypes = {
   height          : number,
   record          : bool.isRequired,
   onStop          : func,
-  onData          : func
+  onData          : func,
+  onDataPcm       : func
 };
 
 ReactMic.defaultProps = {
