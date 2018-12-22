@@ -3,6 +3,8 @@ import AudioContext from './AudioContext';
 let analyser;
 let audioCtx;
 let mediaRecorder;
+let mediaSource;
+let mediaProcessor;
 let chunks = [];
 let startTime;
 let stream;
@@ -82,23 +84,18 @@ export class MicrophoneRecorder {
             audioCtx.resume();
             mediaRecorder.start(10);
 
-            const source = audioCtx.createMediaStreamSource(stream);
-            source.connect(analyser);
+            mediaSource = audioCtx.createMediaStreamSource(stream);
+            mediaSource.connect(analyser);
 
             if (onDataPcmCallback) {
-              const processor = audioCtx.createScriptProcessor(2048, 1, 1);
-              processor.connect(audioCtx.destination);
-              source.connect(processor);
-
-              source.onended = () => {
-                source.disconnect(processor);
-                processor.disconnect(audioCtx.destination);
-              }
+              mediaProcessor = audioCtx.createScriptProcessor(8192, 1, 1);
+              mediaProcessor.connect(audioCtx.destination);
+              mediaSource.connect(mediaProcessor);
               
-              processor.onaudioprocess = (evt) => {
+              mediaProcessor.onaudioprocess = (evt) => {
                 var left = evt.inputBuffer.getChannelData(0);
-                var left16 = downsampleBuffer(left, 44100, 16000)
-                onDataPcmCallback(left16)
+                var left16 = downsampleBuffer(left, 44100, 16000);
+                onDataPcmCallback(left16);
               };
             }
           });
@@ -111,14 +108,22 @@ export class MicrophoneRecorder {
   }
 
   stopRecording() {
+    if (onDataPcmCallback && mediaProcessor && mediaSource) {
+      mediaSource.disconnect(mediaProcessor);
+      mediaProcessor.disconnect(audioCtx.destination);
+      mediaProcessor = null;
+      mediaSource = null;
+    }
+
     if(mediaRecorder && mediaRecorder.state !== 'inactive') {
       mediaRecorder.stop();
 
       stream.getAudioTracks().forEach((track) => {
-        track.stop()
-      })
+        track.stop();
+        stream.removeTrack(track);
+      });
 
-      mediaRecorder = null
+      mediaRecorder = null;
 
       audioCtx.suspend();
     }
