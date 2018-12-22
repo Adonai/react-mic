@@ -89,6 +89,12 @@ export class MicrophoneRecorder {
               const processor = audioCtx.createScriptProcessor(2048, 1, 1);
               processor.connect(audioCtx.destination);
               source.connect(processor);
+
+              source.onended = () => {
+                source.disconnect(processor);
+                processor.disconnect(audioCtx.destination);
+              }
+              
               processor.onaudioprocess = (evt) => {
                 var left = evt.inputBuffer.getChannelData(0);
                 var left16 = downsampleBuffer(left, 44100, 16000)
